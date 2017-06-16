@@ -1,10 +1,12 @@
 require 'fileutils'
 require 'csv'
-class ParallelCSV
+
+class ParallelCsv
 
   attr_accessor :threads, :header_line, :opts, :line_count, :per_thread
 
   def initialize(file_path, opts = {})
+    Rails.application.eager_load!
     @threads = opts.delete(:threads) || 2
     headers = opts.delete(:headers)
     if headers
@@ -18,20 +20,17 @@ class ParallelCSV
   class << self
     def for_each(file_path, opts = {}, &block)
       processor = new(file_path, opts)
-      puts "Line count: #{processor.line_count}"
       current_line = @header_line ? 2 : 1
-      @threads = []
       while current_line < processor.line_count
-        @threads << Thread.new(current_line, processor.per_thread) do |line, inc_amount|
-          csv_string = `sed -n #{line},#{line + inc_amount}p #{file_path}`.strip
-          CSV.parse(csv_string, headers: processor.header_line || false) do |row|
+        fork do
+          csv_string = `sed -n #{current_line},#{current_line + processor.per_thread}p #{file_path}`.strip
+          CSV.parse(csv_string, opts.merge(headers: processor.header_line || false)) do |row|
             block.call(row)
           end
-          puts "Finished processing lines #{line} - #{line + inc_amount}"
         end
-        current_line += processor.per_thread
+        Process.wait
       end
-      @threads.each { |thread| thread.join }
+      current_line += processor.per_thread
     end
   end
 
