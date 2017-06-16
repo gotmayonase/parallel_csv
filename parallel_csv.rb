@@ -6,7 +6,6 @@ class ParallelCsv
   attr_accessor :threads, :header_line, :opts, :line_count, :per_thread
 
   def initialize(file_path, opts = {})
-    Rails.application.eager_load!
     @threads = opts.delete(:threads) || 2
     headers = opts.delete(:headers)
     if headers
